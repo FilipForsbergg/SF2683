@@ -32,29 +32,34 @@ Q2 = [EBO2 Cost2]; % Checking both at the same time in grader.
 % EBO and C are the total values (scalars) for each allocation xj
 EPtable = "to do";
 
-function EBO = EBO_poisson_rec(mu, Smax)
-    epsilon = 1e-12;
-    pk = poisson_pmf_vec(mu, epsilon);   % P(X=k)
-    F  = cumsum(pk);                 % F(k+1) = P(X<=k)
+function output = EBO_j(s_j, mu_j)    %Retunerar reellt tal EBO_j(s_j) = f_j(s_j)
+   
+    %initiering
+    pk_curr = exp(-mu_j);      % P(X_j = 0)
+    EBO_j_curr = mu_j;         % EBO_j(0) = mu_j
+    R_j_curr = 1 - pk_curr;    % R_j(0,s_j) = max(0, 0 - s_j) = 0
 
-    EBO = zeros(Smax+1,1);
-    EBO(1) = mu;                    % EBO(0) = mu
+    %rekursion
+    for k = 0 : s_j - 1
 
-    for s = 1:Smax
-        P_ge_s = 1 - F(s);          % P(X >= s)
-        EBO(s+1) = EBO(s) - P_ge_s;
+        EBO_j_next = EBO_j_curr - R_j_curr;
+        pk_next = (mu_j / (k + 1)) * pk_curr;   
+        R_j_next = R_j_curr - pk_next;  
+
+        pk_curr = pk_next;
+        EBO_j_curr = EBO_j_next;
+        R_j_curr = R_j_next;
+
     end
+    
+    output = EBO_j_curr;
+
 end
 
-function val = f_j(s_j, mu_j)
-    % Return EBO_j(s_j) for a single LRU type
-    EBO_vec = EBO_poisson_rec(mu_j, s_j);   % computes EBO(0..s_j)
-    val = EBO_vec(s_j + 1);                 % index offset since EBO(0) is at position 1
-end
-
-function totalEBO = f2(s, mu)
-    totalEBO = 0;
-    for j = 1:length(s)
-        totalEBO = totalEBO + f_j(s(j), mu(j));
+function output = f2(s, mu)
+    f = zeros(size(s), 1);
+    for j = 1 : length(s)
+        f(j) = f_j(s(j), mu(j));
     end
+    output = f;
 end
