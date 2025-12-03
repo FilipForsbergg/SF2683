@@ -10,6 +10,19 @@ format compact
 cvec = cvec'; % transpose to column vector to use standard notation
 svec = zeros(size(lambdavec))';
 
+%Chech that it's decreasing
+mu = lambdavec .* Tvec;
+EBOprev = inf;
+for i=0:10
+    svec = svec + ones(size(svec));
+    EBO = f(svec, mu);
+    diff = EBO - EBOprev;
+    EBOprev = EBO;
+end
+
+%Check integer convexity
+is_integer_convex(svec, mu)
+
 % Question 2 should described in the report, and submitted below
 % Enter on the format EBO2 is total EBO after adding the spare part 
 % Cost2 should be the cost of the added spare part
@@ -21,6 +34,21 @@ Q2 = [EBO2 Cost2]; % Checking both at the same time in grader.
 % Question 3, you should describe how the Marginal allocation is
 % implemented in your own words in the report, and compute all efficient
 % points.
+
+all_f = zeros(size(lambdavec))'';
+best_value = inf;
+for j = 1 : 9
+    s = zeros(size(lambdavec))'';
+    s(j) = 1;
+
+    all_f(j) = f(s, mu);
+    candidate = f(s, mu);
+    if candidate < best_value
+        best_value = candidate;
+        best_part = j;
+    end
+end
+fprintf('Best part: %d\n', best_part);
 
 % Question 4 should be answered in the report, with a figure and a table with
 % all efficient points
@@ -52,14 +80,36 @@ function output = EBO_j(s_j, mu_j)    %Retunerar reellt tal EBO_j(s_j) = f_j(s_j
 
     end
     
-    output = EBO_j_curr;
+    output = EBO_j_curr;    % sista EBO_j_curr blir EBO_j(s_j)
 
 end
 
-function output = f2(s, mu)
-    f = zeros(size(s), 1);
+% s = (s1, s2, ...) och mu = (lambda1 * T1, ...)
+function output = f(s, mu)     % retunerar summan av alla f_j givet alla s_j och mu_j för varje reservdelstyp
+    s_size = size(s);
+    f = zeros(s_size(1), 1);
     for j = 1 : length(s)
-        f(j) = f_j(s(j), mu(j));
+        f(j) = EBO_j(s(j), mu(j));
     end
-    output = f;
+    output = sum(f);
+end
+
+function bool = is_integer_convex(svec, mu)
+    delta_f_prev = -inf;
+    diff = zeros(size(svec));
+    for i=0:10
+        splusone = svec + ones(size(svec));
+        delta_f = f(splusone, mu) - f(svec, mu);
+        diff(i+1) = delta_f - delta_f_prev;   
+
+        svec = splusone;
+    end
+    bool = all(diff >= 0);     % Check if all delta_f(s+1) are greater than delta_f(s)
+
+    if bool
+        disp("f is integer convex")
+    else
+        disp("f is NOT integer convex")
+    end
+
 end
