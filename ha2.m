@@ -10,7 +10,7 @@ format compact
 cvec = cvec'; % transpose to column vector to use standard notation
 svec = zeros(size(lambdavec))';
 
-tol = 1e-9;
+tol = 1e-9; % tolerans
 
 for j = 1:length(lambdavec)
     mu = lambdavec(j) * Tvec(j);
