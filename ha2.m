@@ -10,38 +10,26 @@ format compact
 cvec = cvec'; % transpose to column vector to use standard notation
 svec = zeros(size(lambdavec))';
 
-fs = f(svec, lambdavec, Tvec);
-fs2 = f(svec + 10*ones(size(svec)), lambdavec, Tvec)
-gs = g(svec, cvec);
+tol = 1e-9;
 
-%is_integer_convex(f, svec, lambdavec, Tvec)
+for j = 1:length(lambdavec)
+    mu = lambdavec(j) * Tvec(j);
+    Smax = 10;
+    EBOj = EBO_poisson_rec(mu, Smax);   % s=0..10
 
-%Calculate forward differences
+    % första differens: f(s+1) - f(s)
+    d1 = diff(EBOj);         %s=0..9
 
+    % andra differens: d1(s+1) - d1(s)
+    d2 = diff(d1);           % längd 9, motsvarar s=0..8
 
+    is_decreasing     = all(d1 <=  tol); 
+    is_int_convex     = all(d2 >= -tol); 
 
-%one_vector = 10*ones(size(svec));
-%s_plus_1 = svec + one_vector;
-%delta_f = f(s_plus_1, lambdavec, Tvec) - f(svec, lambdavec, Tvec)
-
-for j = 1 : length(svec)
-    iteration = 0;
-    max_iterations = 10000; % Set a limit to avoid infinite loops
-    while true
-        delta_f_next = f(svec(j+1), lambdavec, Tvec);
-        delta_f_curr = f(svec(j), lambdavec, Tvec);
-        if delta_f_next < delta_f_curr
-            disp("f is not integer-convex")
-            break
-        end
-        iteration = iteration + 1;
-        if iteration >= max_iterations
-            disp("f is integer-convex for all points up to " + num2str( max_iterations) + ")")
-            break
-       
-        end
-    end
+    fprintf('LRU %d: decreasing = %d, integer-convex = %d\n', ...
+            j, is_decreasing, is_int_convex);
 end
+
 % Question 2 should described in the report, and submitted below
 % Enter on the format EBO2 is total EBO after adding the spare part 
 % Cost2 should be the cost of the added spare part
@@ -64,45 +52,53 @@ Q2 = [EBO2 Cost2]; % Checking both at the same time in grader.
 % EBO and C are the total values (scalars) for each allocation xj
 EPtable = "to do";
 
-function output = g(s, c)
-    output = c' * s;
-end
-
-function output = poissonPMF(k, mu)
-    % Beräkna Poisson-PMF utan Statistics Toolbox
-    % k kan vara en vektor
-    output = exp(-mu) .* (mu.^k) ./ factorial(k);
-end
-
-function output = f(s, lambda, T)       % f(s) = EBO(s) = SUM{EBO_j(s_j)} för i = 1 till n
-    my = lambda .* T;
-    F=0; EBO_j = 0; k = 0; epsilon = 1e-10; SUM_fs = zeros(size(s)); EBO = zeros(size(s));
-    for j = 1 : length(s)
-        while F < 1 - epsilon
-            EBO_j = EBO_j + max(k - s(j), 0) * poissonPMF(k, my(j));
-            F = F + poissonPMF(k, my(j));
-            k = k + 1;
-        end
-        EBO(j) = EBO_j;
-        SUM_fs(j) = SUM_fs(j) + EBO_j;
-        EBO_j = 0; F = 0; k = 0;
-    end
-    fs = SUM_fs;
-
-    output = fs;
-end
-
-function output = is_integer_convex(f, s, lambdavec, Tvec)
-    delta_f = zeros(size(s));
-    for i = 1 : length(s)
-        delta_f(i) = f(s(i) + 1, lambdavec, Tvec) - f(s(i), lambdavec, Tvec);
+function pk = poisson_pmf_vec(mu, eps)
+    if nargin < 2
+        eps = 1e-12;
     end
 
-    for i = 1 : length(delta_f) - 1
-        if delta_f(i+1) < delta_f(i)
-            output = false;
-            return;
-        end
+    pk = [];          % kommer bli kolumnvektor
+    k  = 0;
+    p0 = exp(-mu);    % P(N=0)
+    pk(1,1) = p0;
+    F = p0;
+
+    while F < 1 - eps
+        k = k + 1;
+        p_next = pk(k) * mu / k;   % rekursiv formel
+        pk(k+1,1) = p_next;       % P(N=k)
+        F = F + p_next;
     end
-    output = true;
+end
+
+function EBO = EBO_poisson_rec(mu, Smax)
+    % Returnerar vektor EBO(s) för s = 0,...,Smax (längd Smax+1)
+    eps = 1e-12;
+    pk = poisson_pmf_vec(mu, eps);   % P(N=k), k=0,...,Kmax
+    F  = cumsum(pk);                 % F(k+1) = P(N<=k)
+
+    % EBO(0) = E[N] = mu
+    EBO = zeros(Smax+1,1);
+    EBO(1) = mu;
+
+    for s = 1:Smax
+        % P(N >= s) = 1 - P(N <= s-1) = 1 - F(s)
+        P_ge_s = 1 - F(s);
+        EBO(s+1) = EBO(s) - P_ge_s;
+    end
+end
+
+function cost = g(s, cvec)
+    cost = sum(s(:) .* cvec(:));
+end
+
+function totalEBO = f(s, lambdavec, Tvec)
+    % s är en rad/kolumnvektor med 9 komponenter: [s1 ... s9]
+    totalEBO = 0;
+    for j = 1:length(s)
+        mu = lambdavec(j) * Tvec(j);
+        Smax = s(j);                      
+        EBOj_vec = EBO_poisson_rec(mu, Smax);
+        totalEBO = totalEBO + EBOj_vec(Smax+1);
+    end
 end
